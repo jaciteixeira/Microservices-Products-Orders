@@ -1,0 +1,217 @@
+﻿using AutoFixture;
+using FluentAssertions;
+using Moq;
+using Products.Application.DTOs;
+using Products.Application.Services;
+using Products.Application.Services.Service;
+using Products.Domain.Entities;
+using Products.Domain.Enums;
+using Products.Domain.Interfaces;
+using Products.Domain.Interfaces.Repository;
+using Xunit;
+
+namespace Products.Tests.Application;
+
+public class ProductServiceTests
+{
+    private readonly Mock<IProductRepository> _repositoryMock;
+    private readonly ProductService _service;
+    private readonly Fixture _fixture;
+
+    public ProductServiceTests()
+    {
+        _repositoryMock = new Mock<IProductRepository>();
+        _service = new ProductService(_repositoryMock.Object);
+        _fixture = new Fixture();
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_WhenProductExists_ReturnsProductDto()
+    {
+        var product = _fixture.Build<Product>()
+            .With(p => p.Id, 1)
+            .With(p => p.Name, "X-Burger")
+            .With(p => p.Price, 25.90m)
+            .With(p => p.Category, CategoryEnum.SANDWICH)
+            .With(p => p.Active, true)
+            .Create();
+
+        _repositoryMock.Setup(r => r.GetByIdAsync(1))
+            .ReturnsAsync(product);
+
+        var result = await _service.GetByIdAsync(1);
+
+        result.Should().NotBeNull();
+        result!.Id.Should().Be(1);
+        result.Name.Should().Be("X-Burger");
+        result.Price.Should().Be(25.90m);
+        result.Category.Should().Be(CategoryEnum.SANDWICH);
+        result.Active.Should().BeTrue();
+
+        _repositoryMock.Verify(r => r.GetByIdAsync(1), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_WhenProductDoesNotExist_ReturnsNull()
+    {
+        _repositoryMock.Setup(r => r.GetByIdAsync(999))
+            .ReturnsAsync((Product?)null);
+
+        var result = await _service.GetByIdAsync(999);
+
+        result.Should().BeNull();
+        _repositoryMock.Verify(r => r.GetByIdAsync(999), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetAllAsync_ReturnsAllProducts()
+    {
+        var products = _fixture.Build<Product>()
+            .With(p => p.Active, true)
+            .CreateMany(5)
+            .ToList();
+
+        _repositoryMock.Setup(r => r.GetAllAsync())
+            .ReturnsAsync(products);
+
+        var result = await _service.GetAllAsync();
+
+        result.Should().HaveCount(5);
+        result.Should().AllSatisfy(p => p.Active.Should().BeTrue());
+        _repositoryMock.Verify(r => r.GetAllAsync(), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetByCategoryAsync_ReturnOnlyProductsOfCategory()
+    {
+        var sandwiches = _fixture.Build<Product>()
+            .With(p => p.Category, CategoryEnum.SANDWICH)
+            .CreateMany(3)
+            .ToList();
+
+        _repositoryMock.Setup(r => r.GetByCategoryAsync(CategoryEnum.SANDWICH))
+            .ReturnsAsync(sandwiches);
+
+        var result = await _service.GetByCategoryAsync(CategoryEnum.SANDWICH);
+
+        result.Should().HaveCount(3);
+        result.Should().AllSatisfy(p =>
+            p.Category.Should().Be(CategoryEnum.SANDWICH));
+        _repositoryMock.Verify(r => r.GetByCategoryAsync(CategoryEnum.SANDWICH), Times.Once);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithValidData_CreatesAndReturnsProduct()
+    {
+        var createDto = new CreateProductDto(
+            Name: "X-Bacon",
+            Price: 29.90m,
+            Category: CategoryEnum.SANDWICH,
+            Description: "Delicioso hambúrguer",
+            ImageUrl: "https://example.com/bacon.jpg"
+        );
+
+        var createdProduct = new Product
+        {
+            Id = 1,
+            Name = createDto.Name,
+            Price = createDto.Price,
+            Category = createDto.Category,
+            Description = createDto.Description,
+            ImageUrl = createDto.ImageUrl,
+            Active = true
+        };
+
+        _repositoryMock.Setup(r => r.AddAsync(It.IsAny<Product>()))
+            .ReturnsAsync(createdProduct);
+
+        var result = await _service.CreateAsync(createDto);
+
+        result.Should().NotBeNull();
+        result.Id.Should().Be(1);
+        result.Name.Should().Be("X-Bacon");
+        result.Price.Should().Be(29.90m);
+        result.Active.Should().BeTrue();
+
+        _repositoryMock.Verify(r => r.AddAsync(It.Is<Product>(p =>
+            p.Name == createDto.Name &&
+            p.Price == createDto.Price &&
+            p.Category == createDto.Category
+        )), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WhenProductExists_UpdatesAndReturnsProduct()
+    {
+        var existingProduct = _fixture.Build<Product>()
+            .With(p => p.Id, 1)
+            .With(p => p.Name, "X-Burger")
+            .With(p => p.Price, 25.90m)
+            .Create();
+
+        var updateDto = new UpdateProductDto(
+            Name: "X-Burger Premium",
+            Price: 32.90m,
+            Category: CategoryEnum.SANDWICH,
+            Description: "Versão premium",
+            Active: true,
+            ImageUrl: null
+        );
+
+        _repositoryMock.Setup(r => r.GetByIdAsync(1))
+            .ReturnsAsync(existingProduct);
+
+        _repositoryMock.Setup(r => r.UpdateAsync(It.IsAny<Product>()))
+            .ReturnsAsync(existingProduct);
+
+        var result = await _service.UpdateAsync(1, updateDto);
+
+        result.Should().NotBeNull();
+        result.Name.Should().Be("X-Burger Premium");
+        result.Price.Should().Be(32.90m);
+
+        _repositoryMock.Verify(r => r.GetByIdAsync(1), Times.Once);
+        _repositoryMock.Verify(r => r.UpdateAsync(It.IsAny<Product>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WhenProductDoesNotExist_ThrowsKeyNotFoundException()
+    {
+        var updateDto = _fixture.Create<UpdateProductDto>();
+
+        _repositoryMock.Setup(r => r.GetByIdAsync(999))
+            .ReturnsAsync((Product?)null);
+
+        Func<Task> act = async () => await _service.UpdateAsync(999, updateDto);
+
+        await act.Should().ThrowAsync<KeyNotFoundException>()
+            .WithMessage("*999*");
+
+        _repositoryMock.Verify(r => r.GetByIdAsync(999), Times.Once);
+        _repositoryMock.Verify(r => r.UpdateAsync(It.IsAny<Product>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_WhenProductExists_ReturnsTrue()
+    {
+        _repositoryMock.Setup(r => r.DeleteAsync(1))
+            .ReturnsAsync(true);
+
+        var result = await _service.DeleteAsync(1);
+
+        result.Should().BeTrue();
+        _repositoryMock.Verify(r => r.DeleteAsync(1), Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_WhenProductDoesNotExist_ReturnsFalse()
+    {
+        _repositoryMock.Setup(r => r.DeleteAsync(999))
+            .ReturnsAsync(false);
+
+        var result = await _service.DeleteAsync(999);
+
+        result.Should().BeFalse();
+        _repositoryMock.Verify(r => r.DeleteAsync(999), Times.Once);
+    }
+}

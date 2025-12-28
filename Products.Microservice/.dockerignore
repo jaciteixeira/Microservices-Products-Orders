@@ -1,0 +1,12 @@
+**/bin/
+**/obj/
+**/out/
+**/.vs/
+**/.vscode/
+**/wwwroot/
+*.user
+*.suo
+*.cache
+.git/
+.gitignore
+README.md

@@ -1,0 +1,67 @@
+services:
+  # Banco de dados MySQL compartilhado
+  mysql:
+    image: mysql:8.0
+    container_name: mysql_db
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_DATABASE: products_db
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - microservices_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p123456"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # API de Produtos
+  products_api:
+    build:
+      context: ./Products.Microservice
+      dockerfile: Products.API/Dockerfile
+    container_name: products_api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
+      - ConnectionStrings__DefaultConnection=server=mysql;port=3306;database=products_db;user=root;password=123456;Persist Security Info=False;Connect Timeout=300
+    ports:
+      - "5001:80"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - microservices_network
+    restart: on-failure
+
+  # API de Pedidos
+  orders_api:
+    build:
+      context: ./Orders.Microservice
+      dockerfile: Orders.API/Dockerfile
+    container_name: orders_api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
+      - ConnectionStrings__DefaultConnection=server=mysql;port=3306;database=orders_db;user=root;password=123456;Persist Security Info=False;Connect Timeout=300
+      - ProductsApi__BaseUrl=http://products_api:80
+    ports:
+      - "5002:80"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      products_api:
+        condition: service_started
+    networks:
+      - microservices_network
+    restart: on-failure
+
+networks:
+  microservices_network:
+    driver: bridge
+
+volumes:
+  mysql_data:
