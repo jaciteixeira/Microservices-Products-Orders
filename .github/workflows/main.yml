@@ -38,7 +38,7 @@ jobs:
             --configuration Release \
             /p:CollectCoverage=true \
             /p:CoverletOutputFormat=opencover \
-            "/p:Exclude=[*.API]*,[*.Infrastructure]*" \
+            '/p:Exclude=[*.API]*,[*.Infrastructure]*' \
             /p:Threshold=80 \
             /p:ThresholdType=line \
             /p:ThresholdStat=total
