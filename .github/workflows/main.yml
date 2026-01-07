@@ -45,7 +45,21 @@ jobs:
           New-Item -Path "${{ runner.temp }}\scanner" -ItemType Directory -Force
           dotnet tool update dotnet-sonarscanner --tool-path "${{ runner.temp }}\scanner"
 
-      - name: Build and analyze
+      # - name: Build and analyze
+      #   shell: powershell
+      #   env:
+      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      #   run: |
+      #     ${{ runner.temp }}\scanner\dotnet-sonarscanner begin `
+      #       /k:"jaciteixeira_Microservices-Products-Orders" `
+      #       /o:"jaciteixeira" `
+      #       /d:sonar.token="$env:SONAR_TOKEN"
+
+      #     dotnet build
+
+      #     ${{ runner.temp }}\scanner\dotnet-sonarscanner end `
+      #       /d:sonar.token="$env:SONAR_TOKEN"
+      - name: Build, Test and Analyze
         shell: powershell
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -53,9 +67,16 @@ jobs:
           ${{ runner.temp }}\scanner\dotnet-sonarscanner begin `
             /k:"jaciteixeira_Microservices-Products-Orders" `
             /o:"jaciteixeira" `
-            /d:sonar.token="$env:SONAR_TOKEN"
-
+            /d:sonar.token="$env:SONAR_TOKEN" `
+            /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml"
+      
           dotnet build
-
+      
+          dotnet test `
+            --no-build `
+            /p:CollectCoverage=true `
+            /p:CoverletOutputFormat=opencover `
+            /p:CoverletOutput=./TestResults/coverage/
+      
           ${{ runner.temp }}\scanner\dotnet-sonarscanner end `
             /d:sonar.token="$env:SONAR_TOKEN"
