@@ -6,7 +6,7 @@ using Products.Infrastructure.Data;
 using Products.Infrastructure.Repositories;
 using Xunit;
 
-namespace Products.Tests.Infrastructure;
+namespace Products.Tests.Infrastructure.Repositories;
 
 public class ProductRepositoryTests : IDisposable
 {
