@@ -10,7 +10,7 @@ using Products.Domain.Interfaces;
 using Products.Domain.Interfaces.Repository;
 using Xunit;
 
-namespace Products.Tests.Application;
+namespace Products.Tests.Application.Services.Service;
 
 public class ProductServiceTests
 {

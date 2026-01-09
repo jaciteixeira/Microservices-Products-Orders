@@ -3,7 +3,7 @@ using Products.Domain.Entities;
 using Products.Domain.Enums;
 using Xunit;
 
-namespace Products.Tests.Domain;
+namespace Products.Tests.Domain.Entities;
 
 public class ProductTests
 {

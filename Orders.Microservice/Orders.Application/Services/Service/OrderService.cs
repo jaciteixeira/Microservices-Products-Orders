@@ -16,11 +16,13 @@ namespace Orders.Application.Services.Service
     {
         private readonly IOrderRepository _repository;
         private readonly IProductsHttpClient _productsClient;
+        private readonly IPaymentHttpClient _paymentClient;
 
-        public OrderService(IOrderRepository repository, IProductsHttpClient productsClient)
+        public OrderService(IOrderRepository repository, IProductsHttpClient productsClient, IPaymentHttpClient paymentClient)
         {
             _repository = repository;
             _productsClient = productsClient;
+            _paymentClient = paymentClient;
         }
 
         public async Task<OrderDto?> GetByIdAsync(int id)
@@ -63,7 +65,6 @@ namespace Orders.Application.Services.Service
                 PaymentStatus = PaymentStatusEnum.PENDING,
             };
 
-            // Adicionar itens consultando produtos
             foreach (var itemDto in dto.Items)
             {
                 var product = await _productsClient.GetProductByIdAsync(itemDto.ProductId);
@@ -85,11 +86,28 @@ namespace Orders.Application.Services.Service
                 order.AddItem(item);
             }
 
-            // 🎯 O total já foi calculado automaticamente pelo AddItem()!
-            // Mas podemos garantir com:
             order.RecalculateTotal();
 
             var created = await _repository.AddAsync(order);
+
+            //Tentar criar pagamento após criar a order
+            try
+            {
+                var payment = await _paymentClient.CreatePaymentAsync(
+                    created.Id.ToString(),
+                    created.TotalAmount);
+
+                if (payment != null)
+                {
+                    created.SetPaymentId(payment.PaymentId);
+                    await _repository.UpdateAsync(created);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erro ao criar pagamento: {ex.Message}");
+            }
+
             return MapToDto(created);
         }
 
@@ -128,7 +146,7 @@ namespace Orders.Application.Services.Service
             order.Number,
             order.PaymentId,
             order.PaymentStatus,
-            order.TotalAmount,  // 🎯 USA O VALOR ARMAZENADO, não calcula!
+            order.TotalAmount,
             order.CreatedAt,
             order.UpdatedAt,
             order.Items.Select(i => new OrderItemDto(
